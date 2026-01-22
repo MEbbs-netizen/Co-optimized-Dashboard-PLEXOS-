@@ -1,0 +1,11 @@
+# Ignore everything by default
+*
+
+# Allow folders (needed so allowed files inside folders are included)
+!**/
+
+# Allow only what we want
+!**/*.py
+!**/*.ddb
+!requirements.txt
+!.gitignore
