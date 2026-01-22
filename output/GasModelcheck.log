@@ -1,0 +1,89 @@
+2026-01-16 10:48:21,819 - INFO - === DataHub Sync Start ===
+2026-01-16 10:48:21,819 - INFO - CLI Path: None
+2026-01-16 10:48:21,819 - INFO - Local Directory: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 10:48:21,820 - INFO - Remote Path: BENJAMIN DATAHUB/Ben- Cloud scripts
+2026-01-16 10:48:21,820 - ERROR - Skipping sync: CLI path not set or invalid.
+2026-01-16 10:48:21,820 - INFO - === DataHub Sync End ===
+
+2026-01-16 10:59:39,551 - INFO - === DataHub Sync Start ===
+2026-01-16 10:59:39,552 - INFO - CLI Path: None
+2026-01-16 10:59:39,552 - INFO - Local Directory: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 10:59:39,553 - INFO - Remote Path: BENJAMIN DATAHUB/Ben- Cloud scripts
+2026-01-16 10:59:39,553 - ERROR - Skipping sync: CLI path not set or invalid.
+2026-01-16 10:59:39,553 - INFO - === DataHub Sync End ===
+
+2026-01-16 11:10:58,717 - INFO - === DataHub Sync Start ===
+2026-01-16 11:10:58,718 - INFO - CLI Path: None
+2026-01-16 11:10:58,719 - INFO - Local Directory: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 11:10:58,719 - INFO - Remote Path: BENJAMIN DATAHUB/Ben- Cloud scripts
+2026-01-16 11:10:58,719 - ERROR - Skipping sync: CLI path not set or invalid.
+2026-01-16 11:10:58,720 - INFO - === DataHub Sync End ===
+
+2026-01-16 11:12:09,127 - INFO - === DataHub Sync Start ===
+2026-01-16 11:12:09,128 - INFO - CLI Path: None
+2026-01-16 11:12:09,128 - INFO - Local Directory: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 11:12:09,128 - INFO - Remote Path: BENJAMIN DATAHUB/Ben- Cloud scripts
+2026-01-16 11:12:09,129 - ERROR - Skipping sync: CLI path not set or invalid.
+2026-01-16 11:12:09,129 - INFO - === DataHub Sync End ===
+
+2026-01-16 11:15:28,608 - INFO - === DataHub Sync Start ===
+2026-01-16 11:15:28,608 - INFO - CLI Path: None
+2026-01-16 11:15:28,608 - INFO - Local Directory: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 11:15:28,608 - INFO - Remote Path: BENJAMIN DATAHUB/Ben- Cloud scripts
+2026-01-16 11:15:28,609 - ERROR - Skipping sync: CLI path not set or invalid.
+2026-01-16 11:15:28,609 - INFO - === DataHub Sync End ===
+
+2026-01-16 11:18:19,593 - INFO - === DataHub Sync Start ===
+2026-01-16 11:18:19,594 - INFO - CLI Path: None
+2026-01-16 11:18:19,595 - INFO - Local Directory: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 11:18:19,595 - INFO - Remote Path: BENJAMIN DATAHUB/Ben- Cloud scripts
+2026-01-16 11:18:19,595 - ERROR - Skipping sync: CLI path not set or invalid.
+2026-01-16 11:18:19,595 - INFO - === DataHub Sync End ===
+
+2026-01-16 14:01:26,830 - INFO - === DataHub Sync Start ===
+2026-01-16 14:01:26,832 - INFO - CLI Path: None
+2026-01-16 14:01:26,832 - INFO - Local Directory: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 14:01:26,833 - INFO - Remote Path: BENJAMIN DATAHUB/Ben- Cloud scripts
+2026-01-16 14:01:26,834 - ERROR - Skipping sync: CLI path not set or invalid.
+2026-01-16 14:01:26,835 - INFO - === DataHub Sync End ===
+
+2026-01-16 14:02:20,613 - INFO - === DataHub Sync Start ===
+2026-01-16 14:02:20,614 - INFO - CLI Path: None
+2026-01-16 14:02:20,614 - INFO - Local Directory: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 14:02:20,614 - INFO - Remote Path: BENJAMIN DATAHUB/Ben- Cloud scripts
+2026-01-16 14:02:20,615 - ERROR - Skipping sync: CLI path not set or invalid.
+2026-01-16 14:02:20,615 - INFO - === DataHub Sync End ===
+
+2026-01-16 14:18:02,380 - INFO - 2026-01-16 14:18:02.379940 Initiating...
+2026-01-16 14:18:06,018 - INFO - .plexoscloud folder exists. Skipping study creation or cloning.
+2026-01-16 14:18:11,598 - INFO - Pulled latest changes from cloud.
+2026-01-16 14:18:14,425 - INFO - Previous ChangeSet ID: 6965125d-f187-40d9-ad39-02698a85ab54
+2026-01-16 14:18:14,426 - INFO - Changed working directory to local study path: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 14:18:59,395 - INFO - Push Response [0]: 7
+2026-01-16 14:18:59,396 - INFO - Push Response [9]: Contracts_PushChangesetResponse(StudyId='662b5ee8-51a2-499b-b3f5-ed6bbd94d258', ChangesetId='6467208f-b68c-4c80-a80d-47715637cf9f', CloudStudyName='Gas Model Datahub')
+2026-01-16 14:18:59,396 - INFO - Pushed new changeset: 6467208f-b68c-4c80-a80d-47715637cf9f
+2026-01-16 14:19:54,429 - INFO - === DataHub Sync Start ===
+2026-01-16 14:19:54,430 - INFO - CLI Path: None
+2026-01-16 14:19:54,432 - INFO - Local Directory: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 14:19:54,434 - INFO - Remote Path: BENJAMIN DATAHUB/Ben- Cloud scripts
+2026-01-16 14:19:54,436 - ERROR - Skipping sync: CLI path not set or invalid.
+2026-01-16 14:19:54,438 - INFO - === DataHub Sync End ===
+
+2026-01-16 14:29:05,383 - INFO - === DataHub Sync Start ===
+2026-01-16 14:29:05,384 - INFO - CLI Path: None
+2026-01-16 14:29:05,385 - INFO - Local Directory: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 14:29:05,385 - INFO - Remote Path: BENJAMIN DATAHUB/Ben- Cloud scripts
+2026-01-16 14:29:05,386 - ERROR - Skipping sync: CLI path not set or invalid.
+2026-01-16 14:29:05,386 - INFO - === DataHub Sync End ===
+
+2026-01-16 14:30:39,562 - INFO - 2026-01-16 14:30:39.562841 Initiating...
+2026-01-16 14:30:42,376 - INFO - .plexoscloud folder exists. Skipping study creation or cloning.
+2026-01-16 14:30:47,153 - INFO - Pulled latest changes from cloud.
+2026-01-16 14:30:49,703 - INFO - Previous ChangeSet ID: 6467208f-b68c-4c80-a80d-47715637cf9f
+2026-01-16 14:30:49,704 - INFO - Changed working directory to local study path: C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts
+2026-01-16 14:31:04,565 - INFO - Push Response [0]: 7
+2026-01-16 14:31:04,566 - INFO - Push Response [5]: Contracts_PushChangesetResponse(StudyId=None, ChangesetId=None, CloudStudyName=None)
+2026-01-16 14:31:04,566 - INFO - No new local changes were detected. Changeset unchanged.
+2026-01-16 14:31:04,585 - INFO - Modified JSON saved to C:\Users\benjamin.annan\Downloads\Centrica Python SDK training\Ben- Cloud scripts\new payload.json
+2026-01-16 14:31:11,052 - INFO - Simulation triggered. ID: 18a3ff6b-0d32-4d19-86f1-161205296752
+2026-01-16 14:31:11,053 - INFO - Monitoring simulation progress...

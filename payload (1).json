@@ -1,0 +1,71 @@
+{
+  "StudyId": "662b5ee8-51a2-499b-b3f5-ed6bbd94d258",
+  "ChangeSetId": "168afd32-a248-4ae8-8efa-37d226fb83b1",
+  "Models": [
+    "Base Fitted Targets"
+  ],
+  "SimulationOptions": {
+    "SupressSolutionWriting": false,
+    "BuildSelectedDataFiles": false,
+    "Locale": 1033,
+    "OutputFilters": [],
+    "CongestionInsights": {
+      "CacheCongestionInsightsData": false,
+      "ExportCachedParquet": false
+    },
+    "SimulationTasks": [],
+    "SolutionOptions": {
+      "ParquetSchemaVersion": 2,
+      "Name": null,
+      "Description": null,
+      "CreateParquetViewsDatabase": false
+    },
+    "EnableRealTimeLog": true,
+    "UseModelDefinedDiagnosticSettings" :true,
+    "IsModelDistributionRun": false,
+    "SimulationRunType": 2,
+    "SnapshotOptions": {
+      "EnablePlexosSnapshots": false,
+      "EnablePlexosSolverSnapshots": null,
+      "PlexosSnapshotMonitorMinutes": null,
+      "EnableGurobiSnapshots": null
+    },
+    "SolutionReportIds": [],
+    "PaginationMemory": {
+      "SwapPercentage": null
+    }
+  },
+  "SimulationAffinity": null,
+  "ParallelizationOptions": null,
+  "SimulationData": [
+    {
+      "Uri": "https://studies-eu.energyexemplar.com/1.0/downloads/studies/662b5ee8-51a2-499b-b3f5-ed6bbd94d258/changesets/1ae5a4db-ff9d-4d61-9d71-f6fb8a096e4a/input-data",
+      "Type": 0
+    },
+    {
+      "Uri": "https://studies-eu.energyexemplar.com/1.0/downloads/studies/662b5ee8-51a2-499b-b3f5-ed6bbd94d258/changesets/1ae5a4db-ff9d-4d61-9d71-f6fb8a096e4a/timeseries-zip",
+      "Type": 4
+    }
+  ],
+  "SolutionData": [],
+  "DataConfiguration": null,
+  "SimulationEngine": {
+    "EngineId": "dfc68044-0f02-4974-93f4-98851ab54d8d",
+    "Version": "11.000.004.25070212",
+    "Name": "11.0 R04",
+    "EngineType": "Performance",
+    "OperatingSystem": 1,
+    "OptimizationEngine": 0
+  },
+  "Tags": null,
+  "Source": "CloudUI",
+  "Priority": 1,
+  "RequestedCpuCores": 2,
+  "MinimumMemoryInGb": 16.00,
+  "RunParameters": [],
+  "RequestedInstanceType": null,
+  "SimulationType": "None",
+  "SimulationGroupId": null,
+  "VMInstanceProperties": null,
+  "Description": null
+}
