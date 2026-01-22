@@ -1,7 +1,0 @@
-﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<UndocumentedParam xmlns="http://tempuri.org/UndocumentedParam.xsd">
-  <Reserve>
-    <ParameterName>UseEndContentsInConstraints</ParameterName>
-    <Value>True</Value>
-  </Reserve>
-</UndocumentedParam>
