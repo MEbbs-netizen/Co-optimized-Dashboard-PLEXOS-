@@ -12,3 +12,5 @@
 solution_views.ddb
 *.ddb
 !.gitignore
+solution_views.ddb 
+*.ddb 
