@@ -9,4 +9,6 @@
 !**/*.ddb
 !**/*.parquet
 !requirements.txt
+solution_views.ddb
+*.ddb
 !.gitignore
