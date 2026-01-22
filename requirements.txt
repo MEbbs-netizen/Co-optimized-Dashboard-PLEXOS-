@@ -6,4 +6,4 @@ altair
 duckdb
 dotenv
 psutil
-eecloud-1.5.2078.303-py3-none-any.whl
+#eecloud-1.5.2078.303-py3-none-any.whl
