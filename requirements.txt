@@ -1,9 +1,9 @@
-pandas
-streamlit
-plotly
-numpy
-altair
+streamlit>=1.30
+altair>=5
 duckdb
-dotenv
+pandas
+plotly
+python-dotenv
+openpyxl
 psutil
 #eecloud-1.5.2078.303-py3-none-any.whl
