@@ -121,6 +121,97 @@ def load_data(child_class, keywords, phase, period_type, max_rows):
 
     return df.dropna()
 
+# -----------------------------
+# NEW: Insight + annotation helpers (purely additive; no logic changes)
+# -----------------------------
+def _fmt(x):
+    try:
+        return f"{x:,.2f}"
+    except Exception:
+        return str(x)
+
+def _trend_label(series: pd.Series):
+    """Simple slope-based trend label using last N points."""
+    s = series.dropna()
+    if len(s) < 4:
+        return "insufficient history"
+    tail = s.tail(6)
+    delta = tail.iloc[-1] - tail.iloc[0]
+    pct = (delta / (abs(tail.iloc[0]) + 1e-9)) * 100
+    if abs(pct) < 1:
+        return "flat"
+    return "rising" if pct > 0 else "falling"
+
+def build_insights(df: pd.DataFrame, y_label: str):
+    """
+    Build lightweight narrative metrics for a chart.
+    This does not change any outputs; it only generates explanations.
+    """
+    if df.empty:
+        return {}
+
+    d = df.copy()
+    d = d.dropna(subset=["Timestamp", "Value"])
+    if d.empty:
+        return {}
+
+    d = d.sort_values("Timestamp")
+
+    total = d["Value"].sum()
+    avg = d["Value"].mean()
+
+    peak_idx = d["Value"].idxmax()
+    peak_val = d.loc[peak_idx, "Value"]
+    peak_ts = d.loc[peak_idx, "Timestamp"]
+
+    latest_ts = d["Timestamp"].max()
+    latest_val = d.loc[d["Timestamp"] == latest_ts, "Value"].sum()
+
+    # Contributors
+    top_obj = None
+    top_share = None
+    if "Object" in d.columns:
+        by_obj = d.groupby("Object")["Value"].sum().sort_values(ascending=False)
+        if len(by_obj) > 0:
+            top_obj = by_obj.index[0]
+            top_share = (by_obj.iloc[0] / (total + 1e-9)) * 100
+
+    by_time = d.groupby("Timestamp")["Value"].sum().sort_index()
+    trend = _trend_label(by_time)
+
+    return {
+        "total": total,
+        "avg": avg,
+        "peak_val": peak_val,
+        "peak_ts": peak_ts,
+        "latest_ts": latest_ts,
+        "latest_val": latest_val,
+        "trend": trend,
+        "top_obj": top_obj,
+        "top_share": top_share,
+        "n_objects": d["Object"].nunique() if "Object" in d.columns else None
+    }
+
+def render_story_box(df: pd.DataFrame, y_label: str, unit_label: str):
+    """Compact 'what’s happening' narrative block above each chart."""
+    ins = build_insights(df, y_label)
+    if not ins:
+        return
+
+    bullets = []
+    bullets.append(f"**Latest** ({ins['latest_ts'].date()}): `{_fmt(ins['latest_val'])} {unit_label}`")
+    bullets.append(f"**Peak**: `{_fmt(ins['peak_val'])} {unit_label}` on `{ins['peak_ts'].date()}`")
+    bullets.append(f"**Overall trend** (last periods): **{ins['trend']}**")
+    bullets.append(f"**Average**: `{_fmt(ins['avg'])} {unit_label}`")
+
+    if ins.get("top_obj"):
+        bullets.append(f"**Top contributor**: `{ins['top_obj']}` (~{ins['top_share']:.0f}% of total)")
+
+    if ins.get("n_objects") and ins["n_objects"] and ins["n_objects"] > 1:
+        bullets.append(f"**Contributors shown**: `{ins['n_objects']}` objects")
+
+    st.markdown("💡 **What this chart is telling you**\n\n" + "\n".join([f"- {b}" for b in bullets]))
+
 def render_chart(df, y_label, tab_suffix="", chart_type="bar"):
     if df.empty:
         st.warning("No data found.")
@@ -128,7 +219,9 @@ def render_chart(df, y_label, tab_suffix="", chart_type="bar"):
 
     units = df["Unit"].dropna().unique()
     unit_label = units[0] if len(units) == 1 else "various"
-    st.markdown(f"**Insight:** Showing latest trends for {y_label} in {unit_label}")
+
+    # NEW: narrative block (purely additive)
+    render_story_box(df, y_label, unit_label)
 
     chart_title = f"{y_label} Over Time"
     y_title = f"{y_label} ({unit_label})"
@@ -146,9 +239,13 @@ def render_chart(df, y_label, tab_suffix="", chart_type="bar"):
     chart_index = abs(hash(f"{y_label}_{tab_suffix}")) % len(color_palettes)
     color_sequence = color_palettes[chart_index]
 
+    # Keep chart stable by sorting time
+    d = df.copy()
+    d = d.dropna(subset=["Timestamp", "Value"]).sort_values("Timestamp")
+
     if chart_type == "bar":
         fig = px.bar(
-            df,
+            d,
             x="Timestamp",
             y="Value",
             color="Object",
@@ -158,9 +255,10 @@ def render_chart(df, y_label, tab_suffix="", chart_type="bar"):
             color_discrete_sequence=color_sequence,
             opacity=0.85
         )
+        fig.update_layout(barmode="group")
     else:
         fig = px.line(
-            df,
+            d,
             x="Timestamp",
             y="Value",
             color="Object",
@@ -170,13 +268,66 @@ def render_chart(df, y_label, tab_suffix="", chart_type="bar"):
             color_discrete_sequence=color_sequence
         )
 
-    fig.update_layout(barmode="group", margin=dict(l=20, r=20, t=40, b=20), height=420)
+    # NEW: chart annotations (peak/latest + shaded latest window)
+    ins = build_insights(d, y_label)
+    if ins:
+        peak_ts = ins["peak_ts"]
+        peak_val = ins["peak_val"]
+
+        # Shade last 10% of horizon as "latest window"
+        ts_sorted = sorted(d["Timestamp"].dropna().unique())
+        if len(ts_sorted) >= 10:
+            band_start = ts_sorted[int(len(ts_sorted) * 0.9)]
+            band_end = ts_sorted[-1]
+            fig.add_vrect(
+                x0=band_start, x1=band_end,
+                annotation_text="latest window",
+                annotation_position="top left",
+                opacity=0.15,
+                line_width=0
+            )
+
+        fig.add_annotation(
+            x=peak_ts, y=peak_val,
+            text=f"Peak: {_fmt(peak_val)} {unit_label}",
+            showarrow=True,
+            arrowhead=2,
+            ax=30, ay=-40
+        )
+
+        latest_ts = ins["latest_ts"]
+        latest_val = ins["latest_val"]
+        fig.add_annotation(
+            x=latest_ts, y=latest_val,
+            text=f"Latest: {_fmt(latest_val)} {unit_label}",
+            showarrow=True,
+            arrowhead=2,
+            ax=-30, ay=-40
+        )
+
+        label_lower = y_label.lower()
+        if "demand" in label_lower:
+            fig.add_annotation(
+                x=latest_ts, y=latest_val,
+                text="Demand signal (what must be met)",
+                showarrow=False,
+                yshift=30
+            )
+        if "production" in label_lower or "output" in label_lower:
+            fig.add_annotation(
+                x=latest_ts, y=latest_val,
+                text="Supply response (dispatch/build to meet demand)",
+                showarrow=False,
+                yshift=30
+            )
+
+    fig.update_layout(margin=dict(l=20, r=20, t=40, b=20), height=420)
     chart_key = f"chart_{y_label}_{tab_suffix}".replace(" ", "_").lower()
     st.plotly_chart(fig, use_container_width=True, key=chart_key)
 
     with st.expander("Show table"):
-        st.dataframe(df.head(100))
-        csv = df.to_csv(index=False).encode('utf-8')
+        st.dataframe(d.head(100))
+        csv = d.to_csv(index=False).encode('utf-8')
         unique_key = f"download_{y_label}_{tab_suffix}".replace(" ", "_").lower()
         st.download_button("Download CSV", data=csv, file_name=f"{unique_key}.csv", key=unique_key)
 
@@ -189,6 +340,17 @@ tabs = st.tabs([
 # Overview tab
 with tabs[0]:
     st.title("Co-optimized Electricity, Power & Hydrogen Dashboard")
+
+    # NEW: simple model narrative panel (purely additive)
+    st.info(
+        "🧠 **Model story (demo)**\n"
+        "- **Hydrogen demand** drives the system.\n"
+        "- Supply can come from **SMR/eSMR** (gas → H₂) or **Electrolyser** (power → H₂).\n"
+        "- Gas supply enters via **production/contracts**, and H₂ can be buffered by **H₂ storage**.\n"
+        "- Power flows from **generators → transmission node → electrolyser**.\n"
+        "- The optimiser co-optimises **dispatch + flows + costs** to meet offtake reliably."
+    )
+
     col1, col2 = st.columns(2)
     with col1:
         df_prod = load_data("Gas Plant", ["production"], phase, period_type, max_rows)
@@ -258,6 +420,17 @@ sections = [
 for tab_index, tab_title, class_name, default_keywords in sections:
     with tabs[tab_index]:
         st.header(tab_title)
+
+        # NEW: tiny context blurbs per tab (optional but nice for demo)
+        if class_name == "Power2X":
+            st.caption("Power2X: shows how electricity is converted into hydrogen (electrolyser input/output).")
+        elif class_name == "Gas Plant":
+            st.caption("Gas Plants: upstream supply response (e.g., gas production feeding SMR/eSMR and broader system needs).")
+        elif class_name == "Gas Demand":
+            st.caption("Gas Demand: hydrogen offtake / demand signal that must be met in the co-optimisation.")
+        elif class_name == "Region":
+            st.caption("Region: system-wide economic signals (price / SRMC / generation cost).")
+
         prop_query = f"""
             SELECT DISTINCT fki.PropertyName
             FROM fullkeyinfo fki
