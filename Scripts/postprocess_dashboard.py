@@ -287,7 +287,7 @@ with tabs[0]:
 
     # Model narrative panel
     st.info(
-        "🧠 **Model story (demo)**\n"
+        " **Model story (demo)**\n"
         "- **Hydrogen demand** is the driver: offtake at H₂ demand nodes must be met.\n"
         "- Supply can come from **SMR/eSMR** (gas → H₂) or **Electrolyser** (power → H₂).\n"
         "- Gas is sourced via **production and contracts**, buffered in **H₂ storage**, and moved through the network.\n"
