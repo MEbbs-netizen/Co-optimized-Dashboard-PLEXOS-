@@ -5,7 +5,6 @@ import pandas as pd
 import plotly.express as px
 from dotenv import load_dotenv
 
-# NEW (minimal addition)
 from pathlib import Path
 import urllib.request
 
@@ -18,14 +17,12 @@ model_name = os.getenv("model_name", "default")
 db_path = os.path.join(output_path, "solution_views.ddb")
 MAX_ROWS = 3000
 
-# NEW (minimal addition)
 # Use a GitHub Release asset URL in Streamlit Cloud Secrets, e.g.
 # DB_URL="https://github.com/<user>/<repo>/releases/download/<tag>/solution_views.ddb"
 DB_URL = os.getenv("DB_URL", "").strip()
 
 # --- Load DuckDB ---
 if not os.path.exists(db_path):
-    # NEW: If DB_URL is provided (cloud), download the DB instead of building from parquet
     if DB_URL:
         try:
             Path(output_path).mkdir(parents=True, exist_ok=True)
@@ -122,7 +119,7 @@ def load_data(child_class, keywords, phase, period_type, max_rows):
     return df.dropna()
 
 # -----------------------------
-# NEW: Insight + annotation helpers (purely additive; no logic changes)
+# Insight + annotation helpers (purely additive; no logic changes)
 # -----------------------------
 def _fmt(x):
     try:
@@ -220,7 +217,7 @@ def render_chart(df, y_label, tab_suffix="", chart_type="bar"):
     units = df["Unit"].dropna().unique()
     unit_label = units[0] if len(units) == 1 else "various"
 
-    # NEW: narrative block (purely additive)
+    # Narrative box
     render_story_box(df, y_label, unit_label)
 
     chart_title = f"{y_label} Over Time"
@@ -239,7 +236,6 @@ def render_chart(df, y_label, tab_suffix="", chart_type="bar"):
     chart_index = abs(hash(f"{y_label}_{tab_suffix}")) % len(color_palettes)
     color_sequence = color_palettes[chart_index]
 
-    # Keep chart stable by sorting time
     d = df.copy()
     d = d.dropna(subset=["Timestamp", "Value"]).sort_values("Timestamp")
 
@@ -268,59 +264,7 @@ def render_chart(df, y_label, tab_suffix="", chart_type="bar"):
             color_discrete_sequence=color_sequence
         )
 
-    # NEW: chart annotations (peak/latest + shaded latest window)
-    ins = build_insights(d, y_label)
-    if ins:
-        peak_ts = ins["peak_ts"]
-        peak_val = ins["peak_val"]
-
-        # Shade last 10% of horizon as "latest window"
-        ts_sorted = sorted(d["Timestamp"].dropna().unique())
-        if len(ts_sorted) >= 10:
-            band_start = ts_sorted[int(len(ts_sorted) * 0.9)]
-            band_end = ts_sorted[-1]
-            fig.add_vrect(
-                x0=band_start, x1=band_end,
-                annotation_text="latest window",
-                annotation_position="top left",
-                opacity=0.15,
-                line_width=0
-            )
-
-        fig.add_annotation(
-            x=peak_ts, y=peak_val,
-            text=f"Peak: {_fmt(peak_val)} {unit_label}",
-            showarrow=True,
-            arrowhead=2,
-            ax=30, ay=-40
-        )
-
-        latest_ts = ins["latest_ts"]
-        latest_val = ins["latest_val"]
-        fig.add_annotation(
-            x=latest_ts, y=latest_val,
-            text=f"Latest: {_fmt(latest_val)} {unit_label}",
-            showarrow=True,
-            arrowhead=2,
-            ax=-30, ay=-40
-        )
-
-        label_lower = y_label.lower()
-        if "demand" in label_lower:
-            fig.add_annotation(
-                x=latest_ts, y=latest_val,
-                text="Demand signal (what must be met)",
-                showarrow=False,
-                yshift=30
-            )
-        if "production" in label_lower or "output" in label_lower:
-            fig.add_annotation(
-                x=latest_ts, y=latest_val,
-                text="Supply response (dispatch/build to meet demand)",
-                showarrow=False,
-                yshift=30
-            )
-
+    # No on-chart annotations – keep visuals clean
     fig.update_layout(margin=dict(l=20, r=20, t=40, b=20), height=420)
     chart_key = f"chart_{y_label}_{tab_suffix}".replace(" ", "_").lower()
     st.plotly_chart(fig, use_container_width=True, key=chart_key)
@@ -341,14 +285,14 @@ tabs = st.tabs([
 with tabs[0]:
     st.title("Co-optimized Electricity, Power & Hydrogen Dashboard")
 
-    # NEW: simple model narrative panel (purely additive)
+    # Model narrative panel
     st.info(
         "🧠 **Model story (demo)**\n"
-        "- **Hydrogen demand** drives the system.\n"
+        "- **Hydrogen demand** is the driver: offtake at H₂ demand nodes must be met.\n"
         "- Supply can come from **SMR/eSMR** (gas → H₂) or **Electrolyser** (power → H₂).\n"
-        "- Gas supply enters via **production/contracts**, and H₂ can be buffered by **H₂ storage**.\n"
+        "- Gas is sourced via **production and contracts**, buffered in **H₂ storage**, and moved through the network.\n"
         "- Power flows from **generators → transmission node → electrolyser**.\n"
-        "- The optimiser co-optimises **dispatch + flows + costs** to meet offtake reliably."
+        "- The optimiser co-optimises gas, power and hydrogen to meet demand at minimum system cost."
     )
 
     col1, col2 = st.columns(2)
@@ -421,15 +365,15 @@ for tab_index, tab_title, class_name, default_keywords in sections:
     with tabs[tab_index]:
         st.header(tab_title)
 
-        # NEW: tiny context blurbs per tab (optional but nice for demo)
+        # Tiny context blurbs per tab
         if class_name == "Power2X":
-            st.caption("Power2X: shows how electricity is converted into hydrogen (electrolyser input/output).")
+            st.caption("Power2X: how electricity is converted into hydrogen via electrolysers.")
         elif class_name == "Gas Plant":
-            st.caption("Gas Plants: upstream supply response (e.g., gas production feeding SMR/eSMR and broader system needs).")
+            st.caption("Gas Plants: upstream gas supply feeding SMR/eSMR and the wider system.")
         elif class_name == "Gas Demand":
-            st.caption("Gas Demand: hydrogen offtake / demand signal that must be met in the co-optimisation.")
+            st.caption("Gas Demand: hydrogen offtake / demand nodes that must be satisfied.")
         elif class_name == "Region":
-            st.caption("Region: system-wide economic signals (price / SRMC / generation cost).")
+            st.caption("Region: system-wide economic signals (prices, SRMC, generation cost).")
 
         prop_query = f"""
             SELECT DISTINCT fki.PropertyName
