@@ -5,6 +5,10 @@ import pandas as pd
 import plotly.express as px
 from dotenv import load_dotenv
 
+# NEW (minimal addition)
+from pathlib import Path
+import urllib.request
+
 # --- Config and Setup ---
 st.set_page_config(page_title="Co-optimized Electricity, Power & Hydrogen Dashboard", layout="wide")
 load_dotenv(".env")
@@ -14,10 +18,27 @@ model_name = os.getenv("model_name", "default")
 db_path = os.path.join(output_path, "solution_views.ddb")
 MAX_ROWS = 3000
 
+# NEW (minimal addition)
+# Use a GitHub Release asset URL in Streamlit Cloud Secrets, e.g.
+# DB_URL="https://github.com/<user>/<repo>/releases/download/<tag>/solution_views.ddb"
+DB_URL = os.getenv("DB_URL", "").strip()
+
 # --- Load DuckDB ---
 if not os.path.exists(db_path):
-    from prepare_duckdb import prepare_duckdb
-    prepare_duckdb(model_name)
+    # NEW: If DB_URL is provided (cloud), download the DB instead of building from parquet
+    if DB_URL:
+        try:
+            Path(output_path).mkdir(parents=True, exist_ok=True)
+            with st.status("Downloading solution_views.ddb for the dashboard...", expanded=False):
+                urllib.request.urlretrieve(DB_URL, db_path)
+        except Exception as e:
+            st.error(f"Failed to download DuckDB file from DB_URL. Error: {e}")
+            st.stop()
+    else:
+        # Original behavior (local): build the DB if missing
+        from prepare_duckdb import prepare_duckdb
+        prepare_duckdb(model_name)
+
 con = duckdb.connect(db_path, read_only=True)
 
 # --- Verify required views exist ---
@@ -159,7 +180,7 @@ def render_chart(df, y_label, tab_suffix="", chart_type="bar"):
         unique_key = f"download_{y_label}_{tab_suffix}".replace(" ", "_").lower()
         st.download_button("Download CSV", data=csv, file_name=f"{unique_key}.csv", key=unique_key)
 
-# --- TABS --- 
+# --- TABS ---
 tabs = st.tabs([
     "Overview", "Gas Storage", "Gas Fields", "Gas Plants", "Gas Pipelines", "Gas Contracts",
     "Gas Nodes", "Power2X", "Electric Generators", "Gas Demand", "Region Metrics", "Comparison"
