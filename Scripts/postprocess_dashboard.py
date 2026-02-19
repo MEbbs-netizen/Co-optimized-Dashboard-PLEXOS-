@@ -10,7 +10,7 @@ import urllib.request
 # -----------------------------
 # App setup
 # -----------------------------
-st.set_page_config(page_title="SSEP Dashboard", layout="wide")
+st.set_page_config(page_title="Co-optimized Gas, & Hydrogen Dashboard", layout="wide")
 load_dotenv(".env")
 
 output_path = os.getenv("output_path", ".")
@@ -20,7 +20,7 @@ MAX_ROWS = 3000
 
 DB_URL = os.getenv("DB_URL", "").strip()
 
-# Bold + clean UI defaults
+# UI defaults + tabs visibility fix (dark-theme safe)
 st.markdown(
     """
     <style>
@@ -28,6 +28,39 @@ st.markdown(
       h1, h2, h3 {letter-spacing: 0.2px;}
       div[data-testid="stMetricValue"] {font-size: 2.0rem;}
       div[data-testid="stMetricLabel"] {font-size: 1.0rem;}
+
+      /* ===== Tabs: force labels visible (works across Streamlit versions) ===== */
+      div[data-testid="stTabs"]{opacity:1 !important; filter:none !important;}
+
+      div[data-testid="stTabs"] [role="tablist"] {
+        border-bottom: 1px solid rgba(255,255,255,0.15) !important;
+        margin-bottom: 0.75rem !important;
+        gap: 0.35rem !important;
+      }
+      div[data-testid="stTabs"] button[role="tab"] {
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        padding: 10px 14px !important;
+        border-radius: 10px 10px 0 0 !important;
+        background: rgba(255,255,255,0.05) !important;
+        color: rgba(255,255,255,0.85) !important;
+        border: 1px solid rgba(255,255,255,0.10) !important;
+      }
+      div[data-testid="stTabs"] button[role="tab"] * {
+        color: rgba(255,255,255,0.85) !important;
+        fill: rgba(255,255,255,0.85) !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        background: rgba(255,255,255,0.10) !important;
+        color: #ffffff !important;
+        border-bottom: 3px solid #ff4b4b !important;
+      }
+      div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] * {
+        color: #ffffff !important;
+        fill: #ffffff !important;
+      }
     </style>
     """,
     unsafe_allow_html=True,
@@ -51,7 +84,6 @@ if not os.path.exists(db_path):
 
 con = duckdb.connect(db_path, read_only=True)
 
-# Validate required tables
 tables = con.execute("SHOW TABLES").fetchdf()["name"].tolist()
 if "fullkeyinfo" not in tables or "data" not in tables or "Period" not in tables:
     st.error("Required tables are missing (expected: fullkeyinfo, data, Period). Rebuild the DuckDB file.")
@@ -62,7 +94,6 @@ if "fullkeyinfo" not in tables or "data" not in tables or "Period" not in tables
 row_count = con.execute("SELECT COUNT(*) FROM fullkeyinfo").fetchone()[0]
 if row_count == 0:
     st.warning("The model index (fullkeyinfo) is empty. Charts will be blank.")
-
 
 # -----------------------------
 # Global filters
@@ -79,13 +110,12 @@ period_type = st.sidebar.selectbox("Period Type", period_types, key="period_type
 max_rows = st.sidebar.slider("Max Rows", 1000, 10000, MAX_ROWS)
 
 st.sidebar.header("Chart Settings")
-top_n = st.sidebar.slider("Show top contributors", 3, 25, 10, help="Keeps charts readable by grouping the rest into 'Other'.")
+top_n = st.sidebar.slider("Show top contributors", 3, 25, 10, help="Groups the rest as 'Other' to keep charts readable.")
 show_table = st.sidebar.checkbox("Show data tables under charts", value=False)
-chart_height = st.sidebar.slider("Chart height", 420, 900, 620)
-
+chart_height = st.sidebar.slider("Chart height", 420, 900, 650)
 
 # -----------------------------
-# Data loading (parameterised, safe)
+# Data loading (parameterised)
 # -----------------------------
 @st.cache_data(show_spinner=False)
 def load_data(child_class, keywords, phase, period_type, max_rows):
@@ -119,7 +149,6 @@ def load_data(child_class, keywords, phase, period_type, max_rows):
     df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
     df = df.dropna(subset=["Timestamp", "Value", "Object"])
 
-    # Unit heuristic (simple, readable)
     df["Unit"] = "TJ"
     if child_class == "Region":
         k = " ".join([str(x).lower() for x in keywords])
@@ -127,9 +156,8 @@ def load_data(child_class, keywords, phase, period_type, max_rows):
             df["Unit"] = "$ / MWh"
     return df
 
-
 # -----------------------------
-# End-user narrative helpers
+# Insight helpers
 # -----------------------------
 def _fmt(x):
     try:
@@ -196,9 +224,8 @@ def render_summary_panel(df: pd.DataFrame, unit: str):
     st.markdown("**Chart summary**")
     st.markdown("\n".join([f"- {x}" for x in lines]))
 
-
 # -----------------------------
-# Chart helpers (clean + bold)
+# Chart helpers (dynamic colors)
 # -----------------------------
 def top_n_other(d: pd.DataFrame, group_col: str, n: int):
     totals = d.groupby(group_col)["Value"].sum().sort_values(ascending=False)
@@ -208,6 +235,30 @@ def top_n_other(d: pd.DataFrame, group_col: str, n: int):
     out.loc[~out[group_col].isin(keep), group_col] = "Other"
     return out
 
+def _pick_color_sequence(key: str):
+    palettes = [
+        px.colors.qualitative.Bold,
+        px.colors.qualitative.D3,
+        px.colors.qualitative.G10,
+        px.colors.qualitative.Set3,
+        px.colors.qualitative.Dark24,
+        px.colors.qualitative.Alphabet,
+        px.colors.qualitative.Prism,
+        px.colors.qualitative.Safe,
+        px.colors.qualitative.Vivid,
+    ]
+    idx = abs(hash(key)) % len(palettes)
+    return palettes[idx]
+
+def _apply_other_color_map(df: pd.DataFrame, palette: list[str]):
+    labels = [c for c in df["Object"].astype(str).unique().tolist() if c != "Other"]
+    color_map = {}
+    for i, lab in enumerate(labels):
+        color_map[lab] = palette[i % len(palette)]
+    if "Other" in df["Object"].astype(str).unique():
+        color_map["Other"] = "#B0B0B0"
+    return color_map
+
 def render_chart(df: pd.DataFrame, y_label: str, tab_suffix: str = "", chart_type: str = "line", top_n_objects: int = 10):
     if df.empty:
         st.warning("No data found for this selection.")
@@ -216,16 +267,17 @@ def render_chart(df: pd.DataFrame, y_label: str, tab_suffix: str = "", chart_typ
     unit = df["Unit"].dropna().unique()
     unit_label = unit[0] if len(unit) == 1 else "various"
 
-    # Aggregate and reduce clutter
     d = df.copy().dropna(subset=["Timestamp", "Value", "Object"]).sort_values("Timestamp")
     d = d.groupby(["Timestamp", "Object"], as_index=False)["Value"].sum()
     d = top_n_other(d, group_col="Object", n=top_n_objects)
 
-    # Summary panel (end-user oriented)
     render_summary_panel(df, unit_label)
 
     title = f"{y_label}"
     y_title = f"{y_label} ({unit_label})"
+
+    palette = _pick_color_sequence(f"{y_label}_{tab_suffix}")
+    color_map = _apply_other_color_map(d, palette)
 
     if chart_type == "bar":
         fig = px.bar(
@@ -237,10 +289,10 @@ def render_chart(df: pd.DataFrame, y_label: str, tab_suffix: str = "", chart_typ
             labels={"Value": y_title},
             template="plotly_white",
             opacity=0.92,
+            color_discrete_map=color_map,
         )
         fig.update_layout(barmode="stack")
     else:
-        # stacked area is usually more readable than many line traces
         fig = px.area(
             d,
             x="Timestamp",
@@ -249,9 +301,9 @@ def render_chart(df: pd.DataFrame, y_label: str, tab_suffix: str = "", chart_typ
             title=title,
             labels={"Value": y_title},
             template="plotly_white",
+            color_discrete_map=color_map,
         )
 
-    # Bolder look
     fig.update_layout(
         height=chart_height,
         margin=dict(l=20, r=20, t=60, b=20),
@@ -269,7 +321,6 @@ def render_chart(df: pd.DataFrame, y_label: str, tab_suffix: str = "", chart_typ
         csv = d.to_csv(index=False).encode("utf-8")
         unique_key = f"download_{y_label}_{tab_suffix}".replace(" ", "_").lower()
         st.download_button("Download CSV", data=csv, file_name=f"{unique_key}.csv", key=unique_key)
-
 
 # -----------------------------
 # Tabs
@@ -291,7 +342,7 @@ tabs = st.tabs([
 
 # Overview
 with tabs[0]:
-    st.title("SSEP Dashboard")
+    st.title("Co-optimized Gas, & Hydrogen Dashboard")
 
     st.info(
         "This dashboard summarises how the model meets demand by coordinating gas, power, and hydrogen.\n\n"
@@ -333,8 +384,6 @@ with tabs[0]:
     with c4:
         render_chart(df_cost, "Generation Cost", tab_suffix="overview_cost", chart_type="bar", top_n_objects=min(top_n, 8))
 
-
-# Domain tabs (same pattern, cleaner visuals)
 sections = [
     (1, "Gas Storage", "Gas Storage", ["initial", "end", "withdrawal", "injection", "build cost"]),
     (2, "Gas Fields", "Gas Field", ["production"]),
@@ -383,8 +432,6 @@ for tab_index, tab_title, class_name, default_keywords in sections:
                 df = load_data(class_name, [prop], phase, period_type, max_rows)
                 render_chart(df, prop, tab_suffix=f"{tab_title}_{prop}", chart_type=chart_mode, top_n_objects=top_n)
 
-
-# Comparison
 with tabs[-1]:
     st.header("Comparison")
 
