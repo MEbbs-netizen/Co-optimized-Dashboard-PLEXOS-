@@ -20,7 +20,7 @@ MAX_ROWS = 3000
 
 DB_URL = os.getenv("DB_URL", "").strip()
 
-# UI defaults + "nuclear" tabs visibility fix (theme-proof)
+# UI defaults (clean + bold)
 st.markdown(
     """
     <style>
@@ -28,45 +28,7 @@ st.markdown(
       h1, h2, h3 {letter-spacing: 0.2px;}
       div[data-testid="stMetricValue"] {font-size: 2.0rem;}
       div[data-testid="stMetricLabel"] {font-size: 1.0rem;}
-
-      /* ===== Tabs: force labels visible across Streamlit versions/themes ===== */
-      div[data-testid="stTabs"] * { filter:none !important; opacity:1 !important; }
-
-      div[data-testid="stTabs"] [role="tablist"] {
-        border-bottom: 1px solid rgba(255,255,255,0.20) !important;
-        margin-bottom: 0.75rem !important;
-        gap: 0.35rem !important;
-      }
-
-      div[data-testid="stTabs"] button[role="tab"] {
-        font-size: 16px !important;
-        font-weight: 800 !important;
-        padding: 10px 14px !important;
-        border-radius: 10px 10px 0 0 !important;
-        background: rgba(255,255,255,0.06) !important;
-        border: 1px solid rgba(255,255,255,0.18) !important;
-      }
-
-      div[data-testid="stTabs"] button[role="tab"] p,
-      div[data-testid="stTabs"] button[role="tab"] span,
-      div[data-testid="stTabs"] button[role="tab"] div {
-        color: rgba(255,255,255,0.92) !important;
-        -webkit-text-fill-color: rgba(255,255,255,0.92) !important;
-        visibility: visible !important;
-        display: inline !important;
-      }
-
-      div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
-        background: rgba(255,255,255,0.12) !important;
-        border-bottom: 3px solid #ff4b4b !important;
-      }
-
-      div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p,
-      div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] span,
-      div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] div {
-        color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important;
-      }
+      .section-title {font-size: 1.25rem; font-weight: 800; margin-top: 0.6rem;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -121,7 +83,26 @@ show_table = st.sidebar.checkbox("Show data tables under charts", value=False)
 chart_height = st.sidebar.slider("Chart height", 420, 900, 650)
 
 # -----------------------------
-# Data loading (parameterised)
+# Navigation (replaces tabs so labels always show)
+# -----------------------------
+PAGES = [
+    "Overview",
+    "Gas Storage",
+    "Gas Fields",
+    "Gas Plants",
+    "Gas Pipelines",
+    "Gas Contracts",
+    "Gas Nodes",
+    "Power2X",
+    "Electric Generators",
+    "Gas Demand",
+    "Region Metrics",
+    "Comparison",
+]
+page = st.sidebar.radio("Navigate", PAGES, index=0)
+
+# -----------------------------
+# Data loading (parameterised, safe)
 # -----------------------------
 @st.cache_data(show_spinner=False)
 def load_data(child_class, keywords, phase, period_type, max_rows):
@@ -265,7 +246,7 @@ def _apply_other_color_map(df: pd.DataFrame, palette: list[str]):
         color_map["Other"] = "#B0B0B0"
     return color_map
 
-def render_chart(df: pd.DataFrame, y_label: str, tab_suffix: str = "", chart_type: str = "line", top_n_objects: int = 10):
+def render_chart(df: pd.DataFrame, y_label: str, key_suffix: str, chart_type: str, top_n_objects: int):
     if df.empty:
         st.warning("No data found for this selection.")
         return
@@ -279,11 +260,10 @@ def render_chart(df: pd.DataFrame, y_label: str, tab_suffix: str = "", chart_typ
 
     render_summary_panel(df, unit_label)
 
-    title = f"{y_label}"
-    y_title = f"{y_label} ({unit_label})"
-
-    palette = _pick_color_sequence(f"{y_label}_{tab_suffix}")
+    palette = _pick_color_sequence(f"{y_label}_{key_suffix}")
     color_map = _apply_other_color_map(d, palette)
+
+    y_title = f"{y_label} ({unit_label})"
 
     if chart_type == "bar":
         fig = px.bar(
@@ -291,8 +271,8 @@ def render_chart(df: pd.DataFrame, y_label: str, tab_suffix: str = "", chart_typ
             x="Timestamp",
             y="Value",
             color="Object",
-            title=title,
             labels={"Value": y_title},
+            title=y_label,
             template="plotly_white",
             opacity=0.92,
             color_discrete_map=color_map,
@@ -304,8 +284,8 @@ def render_chart(df: pd.DataFrame, y_label: str, tab_suffix: str = "", chart_typ
             x="Timestamp",
             y="Value",
             color="Object",
-            title=title,
             labels={"Value": y_title},
+            title=y_label,
             template="plotly_white",
             color_discrete_map=color_map,
         )
@@ -319,36 +299,62 @@ def render_chart(df: pd.DataFrame, y_label: str, tab_suffix: str = "", chart_typ
         font=dict(size=15),
     )
 
-    chart_key = f"chart_{y_label}_{tab_suffix}".replace(" ", "_").lower()
-    st.plotly_chart(fig, use_container_width=True, key=chart_key)
+    st.plotly_chart(fig, use_container_width=True, key=f"chart_{key_suffix}")
 
     if show_table:
         st.dataframe(d.head(300), use_container_width=True)
         csv = d.to_csv(index=False).encode("utf-8")
-        unique_key = f"download_{y_label}_{tab_suffix}".replace(" ", "_").lower()
-        st.download_button("Download CSV", data=csv, file_name=f"{unique_key}.csv", key=unique_key)
+        st.download_button(
+            "Download CSV",
+            data=csv,
+            file_name=f"{key_suffix}.csv",
+            key=f"dl_{key_suffix}",
+        )
+
+def render_property_page(title: str, class_name: str, default_keywords: list[str]):
+    st.title(title)
+
+    prop_query = """
+        SELECT DISTINCT fki.PropertyName
+        FROM fullkeyinfo fki
+        WHERE fki.ChildClassName = ?
+          AND fki.PhaseName ILIKE ?
+          AND fki.PeriodTypeName ILIKE ?
+    """
+    prop_df = con.execute(prop_query, [class_name, phase, period_type]).fetchdf()
+    all_properties = sorted(prop_df["PropertyName"].dropna().tolist())
+
+    default_selection = [p for p in all_properties if any(k in p.lower() for k in default_keywords)]
+    default_selection = default_selection or (all_properties[:1] if all_properties else [])
+
+    selected_properties = st.multiselect(
+        "Properties",
+        options=all_properties,
+        default=default_selection,
+        key=f"props_{class_name.replace(' ', '_')}",
+    )
+
+    chart_style = st.radio(
+        "Visual style",
+        ["Stacked (area)", "Stacked (bar)"],
+        horizontal=True,
+        key=f"style_{class_name.replace(' ', '_')}",
+    )
+    chart_mode = "line" if chart_style == "Stacked (area)" else "bar"
+
+    if not selected_properties:
+        st.info("Select at least one property.")
+        return
+
+    for prop in selected_properties:
+        df = load_data(class_name, [prop], phase, period_type, max_rows)
+        render_chart(df, prop, key_suffix=f"{class_name}_{prop}".replace(" ", "_"), chart_type=chart_mode, top_n_objects=top_n)
 
 # -----------------------------
-# Tabs
+# Pages
 # -----------------------------
-tabs = st.tabs([
-    "Overview",
-    "Gas Storage",
-    "Gas Fields",
-    "Gas Plants",
-    "Gas Pipelines",
-    "Gas Contracts",
-    "Gas Nodes",
-    "Power2X",
-    "Electric Generators",
-    "Gas Demand",
-    "Region Metrics",
-    "Comparison"
-])
-
-with tabs[0]:
+if page == "Overview":
     st.title("Co-optimized Gas, & Hydrogen Dashboard")
-
     st.info(
         "This dashboard summarises how the model meets demand by coordinating gas, power, and hydrogen.\n\n"
         "Use the filters on the left to switch Phase and Period Type, then review:\n"
@@ -375,79 +381,61 @@ with tabs[0]:
     with k4:
         st.metric("Total Generation Cost", f"{(df_cost['Value'].sum() if not df_cost.empty else 0):,.0f}")
 
-    st.subheader("Supply and Demand")
+    st.markdown('<div class="section-title">Supply and Demand</div>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
-        render_chart(df_prod, "Production", tab_suffix="overview_prod", chart_type="line", top_n_objects=top_n)
+        render_chart(df_prod, "Production", key_suffix="overview_prod", chart_type="line", top_n_objects=top_n)
     with c2:
-        render_chart(df_dem, "Demand", tab_suffix="overview_dem", chart_type="line", top_n_objects=top_n)
+        render_chart(df_dem, "Demand", key_suffix="overview_dem", chart_type="line", top_n_objects=top_n)
 
-    st.subheader("Economic Signals")
+    st.markdown('<div class="section-title">Economic Signals</div>', unsafe_allow_html=True)
     c3, c4 = st.columns(2)
     with c3:
-        render_chart(df_price, "Region Price", tab_suffix="overview_price", chart_type="line", top_n_objects=min(top_n, 8))
+        render_chart(df_price, "Region Price", key_suffix="overview_price", chart_type="line", top_n_objects=min(top_n, 8))
     with c4:
-        render_chart(df_cost, "Generation Cost", tab_suffix="overview_cost", chart_type="bar", top_n_objects=min(top_n, 8))
+        render_chart(df_cost, "Generation Cost", key_suffix="overview_cost", chart_type="bar", top_n_objects=min(top_n, 8))
 
-sections = [
-    (1, "Gas Storage", "Gas Storage", ["initial", "end", "withdrawal", "injection", "build cost"]),
-    (2, "Gas Fields", "Gas Field", ["production"]),
-    (3, "Gas Plants", "Gas Plant", ["production"]),
-    (4, "Gas Pipelines", "Gas Pipeline", ["flow"]),
-    (5, "Gas Contracts", "Gas Contract", ["volume", "flow"]),
-    (6, "Gas Nodes", "Gas Node", ["balance", "demand"]),
-    (7, "Power2X", "Power2X", ["production", "input", "output"]),
-    (8, "Electric Generators", "Generator", ["production", "output", "mw"]),
-    (9, "Gas Demand", "Gas Demand", ["hydrogen demand", "offtake", "demand"]),
-    (10, "Region Metrics", "Region", ["price", "srmc", "generation cost"]),
-]
+elif page == "Gas Storage":
+    render_property_page("Gas Storage", "Gas Storage", ["initial", "end", "withdrawal", "injection", "build cost"])
 
-for tab_index, tab_title, class_name, default_keywords in sections:
-    with tabs[tab_index]:
-        st.header(tab_title)
-        st.caption("Select properties to display. Charts show the top contributors and group the rest as 'Other' for readability.")
+elif page == "Gas Fields":
+    render_property_page("Gas Fields", "Gas Field", ["production"])
 
-        prop_query = """
-            SELECT DISTINCT fki.PropertyName
-            FROM fullkeyinfo fki
-            WHERE fki.ChildClassName = ?
-              AND fki.PhaseName ILIKE ?
-              AND fki.PeriodTypeName ILIKE ?
-        """
-        prop_df = con.execute(prop_query, [class_name, phase, period_type]).fetchdf()
-        all_properties = sorted(prop_df["PropertyName"].dropna().tolist())
+elif page == "Gas Plants":
+    render_property_page("Gas Plants", "Gas Plant", ["production"])
 
-        default_selection = [p for p in all_properties if any(k in p.lower() for k in default_keywords)]
-        default_selection = default_selection or (all_properties[:1] if all_properties else [])
+elif page == "Gas Pipelines":
+    render_property_page("Gas Pipelines", "Gas Pipeline", ["flow"])
 
-        selected_properties = st.multiselect(
-            "Properties",
-            options=all_properties,
-            default=default_selection,
-            key=f"prop_selector_{tab_title.lower().replace(' ', '_')}",
-        )
+elif page == "Gas Contracts":
+    render_property_page("Gas Contracts", "Gas Contract", ["volume", "flow"])
 
-        chart_type = st.radio("Visual style", ["Stacked (area)", "Stacked (bar)"], horizontal=True, key=f"chart_type_{tab_index}")
-        chart_mode = "line" if chart_type == "Stacked (area)" else "bar"
+elif page == "Gas Nodes":
+    render_property_page("Gas Nodes", "Gas Node", ["balance", "demand"])
 
-        if not selected_properties:
-            st.info("Select at least one property.")
-        else:
-            for prop in selected_properties:
-                df = load_data(class_name, [prop], phase, period_type, max_rows)
-                render_chart(df, prop, tab_suffix=f"{tab_title}_{prop}", chart_type=chart_mode, top_n_objects=top_n)
+elif page == "Power2X":
+    render_property_page("Power2X", "Power2X", ["production", "input", "output"])
 
-with tabs[-1]:
-    st.header("Comparison")
+elif page == "Electric Generators":
+    render_property_page("Electric Generators", "Generator", ["production", "output", "mw"])
+
+elif page == "Gas Demand":
+    render_property_page("Gas Demand", "Gas Demand", ["hydrogen demand", "offtake", "demand"])
+
+elif page == "Region Metrics":
+    render_property_page("Region Metrics", "Region", ["price", "srmc", "generation cost"])
+
+elif page == "Comparison":
+    st.title("Comparison")
 
     class1 = st.selectbox("Class A", ["Gas Plant", "Gas Node", "Region", "Generator", "Gas Demand", "Power2X"], key="cmp_class1")
-    prop1 = st.text_input("Property keywords A", "production", key="cmp_prop1")
+    prop1 = st.text_input("Property keywords A (comma-separated)", "production", key="cmp_prop1")
 
     class2 = st.selectbox("Class B", ["Gas Plant", "Gas Node", "Region", "Generator", "Gas Demand", "Power2X"], key="cmp_class2")
-    prop2 = st.text_input("Property keywords B", "demand", key="cmp_prop2")
+    prop2 = st.text_input("Property keywords B (comma-separated)", "demand", key="cmp_prop2")
 
-    chart_type = st.radio("Visual style", ["Stacked (area)", "Stacked (bar)"], horizontal=True, key="cmp_chart_type")
-    chart_mode = "line" if chart_type == "Stacked (area)" else "bar"
+    chart_style = st.radio("Visual style", ["Stacked (area)", "Stacked (bar)"], horizontal=True, key="cmp_style")
+    chart_mode = "line" if chart_style == "Stacked (area)" else "bar"
 
     if st.button("Compare"):
         kw1 = [x.strip() for x in prop1.split(",") if x.strip()] or [prop1]
@@ -465,5 +453,4 @@ with tabs[-1]:
             df2["Object"] = f"{class2}: {', '.join(kw2)}"
             df_all = pd.concat([df1[["Timestamp", "Object", "Value"]], df2[["Timestamp", "Object", "Value"]]])
             df_all["Unit"] = "unit"
-
-            render_chart(df_all, "Comparison", tab_suffix="cmp", chart_type=chart_mode, top_n_objects=2)
+            render_chart(df_all, "Comparison", key_suffix="cmp", chart_type=chart_mode, top_n_objects=2)
