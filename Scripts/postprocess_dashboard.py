@@ -20,7 +20,7 @@ MAX_ROWS = 3000
 
 DB_URL = os.getenv("DB_URL", "").strip()
 
-# UI defaults + tabs visibility fix (dark-theme safe)
+# UI defaults + "nuclear" tabs visibility fix (theme-proof)
 st.markdown(
     """
     <style>
@@ -29,37 +29,43 @@ st.markdown(
       div[data-testid="stMetricValue"] {font-size: 2.0rem;}
       div[data-testid="stMetricLabel"] {font-size: 1.0rem;}
 
-      /* ===== Tabs: force labels visible (works across Streamlit versions) ===== */
-      div[data-testid="stTabs"]{opacity:1 !important; filter:none !important;}
+      /* ===== Tabs: force labels visible across Streamlit versions/themes ===== */
+      div[data-testid="stTabs"] * { filter:none !important; opacity:1 !important; }
 
       div[data-testid="stTabs"] [role="tablist"] {
-        border-bottom: 1px solid rgba(255,255,255,0.15) !important;
+        border-bottom: 1px solid rgba(255,255,255,0.20) !important;
         margin-bottom: 0.75rem !important;
         gap: 0.35rem !important;
       }
+
       div[data-testid="stTabs"] button[role="tab"] {
         font-size: 16px !important;
-        font-weight: 700 !important;
+        font-weight: 800 !important;
         padding: 10px 14px !important;
         border-radius: 10px 10px 0 0 !important;
-        background: rgba(255,255,255,0.05) !important;
-        color: rgba(255,255,255,0.85) !important;
-        border: 1px solid rgba(255,255,255,0.10) !important;
+        background: rgba(255,255,255,0.06) !important;
+        border: 1px solid rgba(255,255,255,0.18) !important;
       }
-      div[data-testid="stTabs"] button[role="tab"] * {
-        color: rgba(255,255,255,0.85) !important;
-        fill: rgba(255,255,255,0.85) !important;
-        opacity: 1 !important;
+
+      div[data-testid="stTabs"] button[role="tab"] p,
+      div[data-testid="stTabs"] button[role="tab"] span,
+      div[data-testid="stTabs"] button[role="tab"] div {
+        color: rgba(255,255,255,0.92) !important;
+        -webkit-text-fill-color: rgba(255,255,255,0.92) !important;
         visibility: visible !important;
+        display: inline !important;
       }
+
       div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
-        background: rgba(255,255,255,0.10) !important;
-        color: #ffffff !important;
+        background: rgba(255,255,255,0.12) !important;
         border-bottom: 3px solid #ff4b4b !important;
       }
-      div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] * {
+
+      div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p,
+      div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] span,
+      div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] div {
         color: #ffffff !important;
-        fill: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
       }
     </style>
     """,
@@ -340,7 +346,6 @@ tabs = st.tabs([
     "Comparison"
 ])
 
-# Overview
 with tabs[0]:
     st.title("Co-optimized Gas, & Hydrogen Dashboard")
 
