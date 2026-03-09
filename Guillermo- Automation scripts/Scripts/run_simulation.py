@@ -9,6 +9,8 @@ from eecloud.cloudsdk import CloudSDK
 from eecloud.models import *
 import pandas as pd
 import openpyxl
+import logging
+import os
 
 APILogger = logging.getLogger("APILogger")
 if not APILogger.handlers:
@@ -45,18 +47,12 @@ def plexoscloud_exists(base_path):
 def main():
     load_env_file()
 
-    # Required envs
     user_name = os.getenv("user_name")
     output_path = os.getenv("output_path")
     study_id = os.getenv("study_id")
     model_name = os.getenv("model_name")
     cloud_cli_path = os.getenv("cloud_cli_path")
     study_name = os.getenv("study_name")
-
-    # Minimal retry configuration (can be overridden in .env)
-    # Only used to retry when simulation progress ends with Failed or Cancelled
-    MAX_ENQUEUE_RETRIES = int(os.getenv("MAX_ENQUEUE_RETRIES", os.getenv("max_enqueue_retries", "3")))
-    RETRY_DELAY_SECONDS = int(os.getenv("RETRY_DELAY_SECONDS", os.getenv("retry_delay_seconds", "30")))
 
     if not all([user_name, output_path, model_name, cloud_cli_path, study_name]):
         raise EnvironmentError("Missing required environment variables in .env")
@@ -190,100 +186,45 @@ def main():
 
     APILogger.info(f"Modified JSON saved to {new_json_path}")
 
-    # List engines
     pxc.simulation.list_simulation_engines(print_message=True)
+    command_responses = pxc.simulation.enqueue_simulation(file_path=new_json_path, print_message=True)
+    last_command_response = pxc.simulation.get_final_response(command_responses)
 
-    # Attempt up to MAX_ENQUEUE_RETRIES simulation runs.
-    # NOTE: The script will NOT retry simply because enqueue failed.
-    # It will re-run (re-enqueue) only when a started simulation later finishes with Failed or Cancelled.
-    attempt = 0
+    if last_command_response is None or last_command_response.Status != "Success":
+        APILogger.error("Failed to enqueue simulation.")
+        return
+
+    simulation_id = last_command_response.EventData.SimulationStarted[0].Id.Value
+    APILogger.info(f"Simulation triggered. ID: {simulation_id}")
+
+    timeout_limit = 360000
+    start_time = time.time()
     simulation_successful = False
 
-    while attempt < MAX_ENQUEUE_RETRIES and not simulation_successful:
-        attempt += 1
-        APILogger.info(f"Simulation run attempt {attempt} of {MAX_ENQUEUE_RETRIES}")
+    APILogger.info("Monitoring simulation progress...")
 
-        # Enqueue a simulation for this attempt
-        try:
-            command_responses = pxc.simulation.enqueue_simulation(
-                file_path=new_json_path,
-                print_message=True
-            )
-            last_command_response = pxc.simulation.get_final_response(command_responses)
-        except Exception as e:
-            APILogger.error(f"Exception while enqueuing simulation on attempt {attempt}: {e}")
-            # Do NOT retry enqueue per your request: exit immediately on enqueue failure
-            APILogger.error("Enqueue failed — not retrying because enqueue failure is not a retry condition. Exiting.")
-            return
+    while True:
+        command_responses = pxc.simulation.check_simulation_progress(simulation_id=simulation_id, print_message=False)
+        last_command_response = pxc.simulation.get_final_response(command_responses)
 
-        if last_command_response is None or last_command_response.Status != "Success":
-            APILogger.error(f"Failed to enqueue simulation on attempt {attempt} (non-success response).")
-            APILogger.error("Enqueue failed — not retrying because enqueue failure is not a retry condition. Exiting.")
-            return
-
-        # Extract simulation id from successful enqueue response
-        try:
-            simulation_started = last_command_response.EventData.SimulationStarted
-            simulation_id = simulation_started[0].Id.Value
-            APILogger.info(f"Simulation triggered. ID: {simulation_id}")
-        except Exception as e:
-            APILogger.error(f"Could not extract simulation ID from enqueue response on attempt {attempt}: {e}")
-            APILogger.error("Enqueue response malformed — exiting (no retry on malformed enqueue).")
-            return
-
-        # Monitor the started simulation
-        timeout_limit = int(os.getenv("simulation_monitor_timeout_seconds", "360000"))
-        start_time = time.time()
-
-        APILogger.info("Monitoring simulation progress...")
-
-        run_status = None
-        while True:
-            try:
-                command_responses = pxc.simulation.check_simulation_progress(simulation_id=simulation_id, print_message=False)
-                last_command_response = pxc.simulation.get_final_response(command_responses)
-            except Exception as e:
-                last_command_response = None
-                APILogger.warning(f"Exception while checking simulation progress: {e}")
-
-            if last_command_response and last_command_response.Status == "Success":
-                status = last_command_response.EventData.Status
-                APILogger.info(f"Simulation {simulation_id} status: {status}")
-                run_status = status
-                if status == "CompletedSuccess":
-                    APILogger.info("Simulation completed successfully.")
-                    simulation_successful = True
-                    break
-                elif status in ["Failed", "Cancelled"]:
-                    APILogger.error(f"Simulation {simulation_id} finished with status: {status}.")
-                    # Will re-enqueue only if attempts remain
-                    break
-            else:
-                APILogger.warning("Failed to retrieve simulation status (or non-success response). Retrying status check...")
-
-            if time.time() - start_time > timeout_limit:
-                APILogger.error("Simulation monitoring timed out.")
-                # Treat timeout as non-success (but not an automatic retry condition). Break to decide next action.
+        if last_command_response and last_command_response.Status == "Success":
+            status = last_command_response.EventData.Status
+            if status == "CompletedSuccess":
+                APILogger.info("Simulation completed successfully.")
+                simulation_successful = True
                 break
+            elif status in ["Failed", "Cancelled"]:
+                APILogger.error(f"Simulation failed with status: {status}. Exiting.")
+                return
+        else:
+            APILogger.warning("Failed to retrieve simulation status. Retrying...")
 
-            time.sleep(30)
+        if time.time() - start_time > timeout_limit:
+            APILogger.error("Simulation monitoring timed out.")
+            break
 
-        # If the run failed or was cancelled, and attempts remain -> wait then next iteration will re-enqueue
-        if not simulation_successful:
-            if run_status in ["Failed", "Cancelled"]:
-                if attempt < MAX_ENQUEUE_RETRIES:
-                    APILogger.info(f"Run ended with {run_status}. Waiting {RETRY_DELAY_SECONDS} seconds before re-enqueueing (attempt {attempt+1})...")
-                    time.sleep(RETRY_DELAY_SECONDS)
-                    continue
-                else:
-                    APILogger.error(f"Run ended with {run_status} and max attempts reached. Exiting without success.")
-                    break
-            else:
-                # Non-retry terminal conditions (enqueue failure handled earlier). For timeouts or unknown states, do not retry per your request.
-                APILogger.error("Run did not complete successfully and is not in Failed/Cancelled state (e.g. timeout or unknown). Exiting without retry.")
-                break
+        time.sleep(30)
 
-    # If successful, download solutions
     if simulation_successful:
         solution_ids = []
         command_responses = pxc.solution.get_solution_id(study_id=study_id, model_name=model_name, print_message=True)
@@ -319,7 +260,7 @@ def main():
         except Exception as e:
             APILogger.warning(f"Failed to write parquet_ready.done: {str(e)}")
     else:
-        APILogger.warning("Simulation did not complete successfully after retries. No output downloaded.")
+        APILogger.warning("Simulation did not complete successfully. No output downloaded.")
 
 
 if __name__ == "__main__":

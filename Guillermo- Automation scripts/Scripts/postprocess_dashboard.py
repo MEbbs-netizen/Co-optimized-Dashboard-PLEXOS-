@@ -6,8 +6,6 @@ import plotly.express as px
 from dotenv import load_dotenv
 from pathlib import Path
 import urllib.request
-import re
-from typing import Optional
 
 # -----------------------------
 # App setup
@@ -21,11 +19,6 @@ db_path = os.path.join(output_path, "solution_views.ddb")
 MAX_ROWS = 3000
 
 DB_URL = os.getenv("DB_URL", "").strip()
-
-# Currency (GBP by default)
-CURRENCY_SYMBOL = os.getenv("CURRENCY_SYMBOL", "£")
-CURRENCY_PER_MWH_UNIT = f"{CURRENCY_SYMBOL}/MWh"
-CURRENCY_MILLION_UNIT = f"{CURRENCY_SYMBOL}m"  # e.g., £m
 
 # UI defaults (clean + bold)
 st.markdown(
@@ -55,7 +48,6 @@ if not os.path.exists(db_path):
             st.stop()
     else:
         from prepare_duckdb import prepare_duckdb
-
         prepare_duckdb(model_name)
 
 con = duckdb.connect(db_path, read_only=True)
@@ -70,70 +62,6 @@ if "fullkeyinfo" not in tables or "data" not in tables or "Period" not in tables
 row_count = con.execute("SELECT COUNT(*) FROM fullkeyinfo").fetchone()[0]
 if row_count == 0:
     st.warning("The model index (fullkeyinfo) is empty. Charts will be blank.")
-
-# -----------------------------
-# Unit detection + inference (DO NOT BREAK IF UNIT COLUMN DOESN'T EXIST)
-# -----------------------------
-def _detect_unit_column(conn) -> Optional[str]:
-    """
-    Try to find a unit column in fullkeyinfo (common names).
-    Returns the *actual* column name (case-sensitive) if found.
-    """
-    try:
-        cols = conn.execute("PRAGMA table_info('fullkeyinfo')").fetchdf()
-    except Exception:
-        return None
-    if cols is None or cols.empty:
-        return None
-
-    # Map lowercase -> actual
-    name_map = {str(n).lower(): str(n) for n in cols["name"].tolist()}
-
-    candidates = [
-        "unitname",
-        "unit_name",
-        "units",
-        "unit",
-        "unittypename",
-        "unit_type_name",
-        "unitlabel",
-    ]
-    for c in candidates:
-        if c in name_map:
-            return name_map[c]
-    return None
-
-UNIT_COL = _detect_unit_column(con)
-
-def _terms_to_regex(terms: list[str]) -> str:
-    """
-    Convert list of terms to a safe regex OR-pattern.
-    Allows flexible whitespace (e.g. 'build cost' matches 'build   cost').
-    """
-    pats = []
-    for t in terms:
-        t = str(t).strip().lower()
-        if not t:
-            continue
-        parts = t.split()
-        # escape each token, then allow flexible whitespace between them
-        pat = r"\s*".join([re.escape(p) for p in parts])
-        pats.append(pat)
-    # fallback that matches nothing
-    return "(" + "|".join(pats) + ")" if pats else r"(?!x)x"
-
-# Inference term sets
-ENERGY_TERMS = [
-    "energy", "production", "output", "injection", "withdrawal", "flow",
-    "throughput", "demand", "balance", "consumption", "offtake", "volume",
-    "tj", "gj", "mwh", "kwh", "mw", "twh"
-]
-PRICE_TERMS = ["price", "srmc", "marginal cost", "variable cost", "fuel cost", "vom", "v.o.m"]
-CAPEX_TERMS = ["build cost", "capital cost", "capex", "investment", "fixed cost", "fom", "f.o.m"]
-
-PRICE_RX = _terms_to_regex(PRICE_TERMS)
-CAPEX_RX = _terms_to_regex(CAPEX_TERMS)
-ENERGY_RX = _terms_to_regex(ENERGY_TERMS)
 
 # -----------------------------
 # Global filters
@@ -187,16 +115,12 @@ def load_data(child_class, keywords, phase, period_type, max_rows):
 
     keyword_clause = " OR ".join(["LOWER(fki.PropertyName) LIKE ?"] * len(kw_patterns))
 
-    # Prefer true unit from DB if available
-    unit_select = f", fki.{UNIT_COL} AS UnitFromDB" if UNIT_COL else ""
-
     query = f"""
         SELECT
             Period.StartDate AS Timestamp,
             fki.ChildObjectName AS Object,
             fki.PropertyName AS Property,
             data.Value
-            {unit_select}
         FROM fullkeyinfo fki
         JOIN data ON fki.SeriesId = data.SeriesId
         JOIN Period ON data.PeriodId = Period.PeriodId
@@ -209,39 +133,14 @@ def load_data(child_class, keywords, phase, period_type, max_rows):
 
     params = [phase, period_type, child_class] + kw_patterns + [int(max_rows)]
     df = con.execute(query, params).fetchdf()
-    if df.empty:
-        return df
-
     df["Timestamp"] = pd.to_datetime(df["Timestamp"], errors="coerce")
-    df = df.dropna(subset=["Timestamp", "Value", "Object", "Property"])
+    df = df.dropna(subset=["Timestamp", "Value", "Object"])
 
-    # Clean DB unit column (if present)
-    if "UnitFromDB" in df.columns:
-        df["UnitFromDB"] = df["UnitFromDB"].astype(str).str.strip()
-        df.loc[df["UnitFromDB"].isin(["", "None", "nan", "NaN"]), "UnitFromDB"] = pd.NA
-
-    # Infer unit from the ACTUAL property name (not just the user's keyword)
-    prop = df["Property"].astype(str).str.lower()
-
-    # Start with a safe default (only used when we truly don't know)
-    inferred = pd.Series(["TJ"] * len(df), index=df.index)
-
-    # Price-like signals -> £/MWh
-    inferred.loc[prop.str.contains(PRICE_RX, regex=True)] = CURRENCY_PER_MWH_UNIT
-
-    # Build/Capex/Fixed -> £m
-    inferred.loc[prop.str.contains(CAPEX_RX, regex=True)] = CURRENCY_MILLION_UNIT
-
-    # If it says "cost" but does NOT look energy-like, treat as money (avoid TJ labels)
-    inferred.loc[(prop.str.contains(r"\bcost\b", regex=True)) & (~prop.str.contains(ENERGY_RX, regex=True))] = CURRENCY_MILLION_UNIT
-
-    # Final Unit: DB unit if available, else inferred
-    if "UnitFromDB" in df.columns:
-        df["Unit"] = df["UnitFromDB"].fillna(inferred)
-        df = df.drop(columns=["UnitFromDB"])
-    else:
-        df["Unit"] = inferred
-
+    df["Unit"] = "TJ"
+    if child_class == "Region":
+        k = " ".join([str(x).lower() for x in keywords])
+        if any(term in k for term in ["price", "srmc", "cost"]):
+            df["Unit"] = "$ / MWh"
     return df
 
 # -----------------------------
@@ -449,13 +348,7 @@ def render_property_page(title: str, class_name: str, default_keywords: list[str
 
     for prop in selected_properties:
         df = load_data(class_name, [prop], phase, period_type, max_rows)
-        render_chart(
-            df,
-            prop,
-            key_suffix=f"{class_name}_{prop}".replace(" ", "_"),
-            chart_type=chart_mode,
-            top_n_objects=top_n,
-        )
+        render_chart(df, prop, key_suffix=f"{class_name}_{prop}".replace(" ", "_"), chart_type=chart_mode, top_n_objects=top_n)
 
 # -----------------------------
 # Pages
@@ -484,11 +377,9 @@ if page == "Overview":
     with k2:
         st.metric("Total Demand", f"{int(df_dem['Value'].sum() if not df_dem.empty else 0):,}")
     with k3:
-        avg_price = df_price["Value"].mean() if not df_price.empty else 0
-        st.metric("Average Region Price", f"{CURRENCY_SYMBOL}{avg_price:,.2f}")
+        st.metric("Average Region Price", f"{(df_price['Value'].mean() if not df_price.empty else 0):,.2f}")
     with k4:
-        total_cost = df_cost["Value"].sum() if not df_cost.empty else 0
-        st.metric("Total Generation Cost", f"{CURRENCY_SYMBOL}{total_cost:,.0f}")
+        st.metric("Total Generation Cost", f"{(df_cost['Value'].sum() if not df_cost.empty else 0):,.0f}")
 
     st.markdown('<div class="section-title">Supply and Demand</div>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
@@ -532,7 +423,7 @@ elif page == "Gas Demand":
     render_property_page("Gas Demand", "Gas Demand", ["hydrogen demand", "offtake", "demand"])
 
 elif page == "Region Metrics":
-    render_property_page("Region Metrics", "Region", ["price", "srmc", "generation cost", "build cost", "capex", "fixed cost"])
+    render_property_page("Region Metrics", "Region", ["price", "srmc", "generation cost"])
 
 elif page == "Comparison":
     st.title("Comparison")
@@ -560,7 +451,6 @@ elif page == "Comparison":
             df2 = df2.copy()
             df1["Object"] = f"{class1}: {', '.join(kw1)}"
             df2["Object"] = f"{class2}: {', '.join(kw2)}"
-            df_all = pd.concat([df1[["Timestamp", "Object", "Value", "Unit"]], df2[["Timestamp", "Object", "Value", "Unit"]]], ignore_index=True)
-
-            # If units differ between the two series, keep them as-is; chart label will show "various"
+            df_all = pd.concat([df1[["Timestamp", "Object", "Value"]], df2[["Timestamp", "Object", "Value"]]])
+            df_all["Unit"] = "unit"
             render_chart(df_all, "Comparison", key_suffix="cmp", chart_type=chart_mode, top_n_objects=2)
